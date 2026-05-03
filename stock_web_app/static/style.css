@@ -325,13 +325,26 @@ body {
 .chart-card {
     display: flex;
     flex-direction: column;
-    height: 450px; /* Set a strict height to prevent infinite canvas expansion */
+    height: 450px;
+    background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+    position: relative;
+}
+
+.chart-card::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-color);
+    opacity: 0.1;
 }
 
 .chart-header {
     background: transparent;
-    border-bottom: none;
-    padding-bottom: 0;
+    border-bottom: 1px solid rgba(229, 231, 235, 0.5);
+    padding: 20px 24px;
 }
 
 .chart-title {
@@ -341,8 +354,10 @@ body {
 }
 
 .chart-title h2 {
-    font-size: 1.5rem;
+    font-size: 1.25rem;
+    font-weight: 700;
     color: var(--text-main);
+    letter-spacing: -0.02em;
 }
 
 .live-badge {
@@ -364,9 +379,9 @@ body {
 
 .chart-wrapper {
     flex: 1;
-    padding: 20px;
+    padding: 10px 24px 24px;
     position: relative;
-    min-height: 0; /* Critical flexbox fix for Chart.js */
+    min-height: 0;
     width: 100%;
 }
 

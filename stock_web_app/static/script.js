@@ -154,10 +154,19 @@ async function updateChart() {
                 const isUp = last >= first;
                 
                 const color = isUp ? '#16a34a' : '#dc2626'; 
-                const bgColor = isUp ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)';
+                
+                const ctx = document.getElementById('stockChart').getContext('2d');
+                const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+                if (isUp) {
+                    gradient.addColorStop(0, 'rgba(22, 163, 74, 0.2)');
+                    gradient.addColorStop(1, 'rgba(22, 163, 74, 0)');
+                } else {
+                    gradient.addColorStop(0, 'rgba(220, 38, 38, 0.2)');
+                    gradient.addColorStop(1, 'rgba(220, 38, 38, 0)');
+                }
                 
                 stockChart.data.datasets[0].borderColor = color;
-                stockChart.data.datasets[0].backgroundColor = bgColor;
+                stockChart.data.datasets[0].backgroundColor = gradient;
             }
             
             stockChart.update('none'); 
@@ -176,7 +185,16 @@ function renderChart(symbol, timestamps, prices) {
     
     const isUp = prices.length >= 2 ? (prices[prices.length-1] >= prices[0]) : true;
     const color = isUp ? '#16a34a' : '#dc2626';
-    const bgColor = isUp ? 'rgba(22, 163, 74, 0.1)' : 'rgba(220, 38, 38, 0.1)';
+    
+    // Create Gradient
+    const gradient = ctx.createLinearGradient(0, 0, 0, 400);
+    if (isUp) {
+        gradient.addColorStop(0, 'rgba(22, 163, 74, 0.2)');
+        gradient.addColorStop(1, 'rgba(22, 163, 74, 0)');
+    } else {
+        gradient.addColorStop(0, 'rgba(220, 38, 38, 0.2)');
+        gradient.addColorStop(1, 'rgba(220, 38, 38, 0)');
+    }
 
     stockChart = new Chart(ctx, {
         type: 'line',
@@ -186,11 +204,11 @@ function renderChart(symbol, timestamps, prices) {
                 label: `Price`,
                 data: prices,
                 borderColor: color,
-                backgroundColor: bgColor,
+                backgroundColor: gradient,
                 borderWidth: 2,
                 pointRadius: 0, 
                 pointHoverRadius: 4,
-                tension: 0.2, // Slightly sharper than 0.3 for trading feel
+                tension: 0.4, 
                 fill: true
             }]
         },
@@ -208,25 +226,39 @@ function renderChart(symbol, timestamps, prices) {
             scales: {
                 x: {
                     grid: { display: false },
-                    ticks: { maxTicksLimit: 6, maxRotation: 0, color: '#9ca3af' }
+                    ticks: { 
+                        maxTicksLimit: 6, 
+                        maxRotation: 0, 
+                        color: '#9ca3af',
+                        font: { size: 10 }
+                    }
                 },
                 y: {
                     position: 'right',
-                    grid: { color: '#f3f4f6' },
+                    grid: { 
+                        color: 'rgba(243, 244, 246, 0.6)',
+                        drawBorder: false
+                    },
                     ticks: {
                         color: '#6b7280',
-                        callback: function(value) { return '₹' + value; }
+                        font: { size: 11, family: 'Inter' },
+                        callback: function(value) { 
+                            return '₹' + value.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2}); 
+                        }
                     }
                 }
             },
             plugins: {
                 tooltip: {
-                    backgroundColor: '#1f2937',
-                    padding: 10,
-                    titleFont: { family: 'Inter' },
+                    backgroundColor: 'rgba(31, 41, 55, 0.95)',
+                    padding: 12,
+                    cornerRadius: 8,
+                    titleFont: { family: 'Inter', size: 12 },
                     bodyFont: { family: 'Inter', size: 14, weight: 'bold' },
                     callbacks: {
-                        label: function(context) { return '₹' + context.parsed.y; }
+                        label: function(context) { 
+                            return 'Price: ₹' + context.parsed.y.toFixed(2); 
+                        }
                     }
                 },
                 legend: { display: false }

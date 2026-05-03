@@ -1,81 +1,99 @@
-# Advanced Data Structures in ProTrade Terminal
+# Advanced DSA Trading Engine (Python-C++ Hybrid)
 
-This document outlines the advanced Data Structures and Algorithms (DSA) implemented in the ProTrade Terminal to enhance performance, scalability, and academic depth.
-
----
-
-## SECTION 1: Overview
-
-In real-world high-frequency trading (HFT) systems, speed and efficiency are paramount. Basic data structures like lists or simple dictionaries often fall short when handling millions of orders and trades per second. By utilizing specialized data structures like AVL Trees, Tries, and B+ Trees, we ensure that the system remains responsive even under high load, with predictable time complexities for core operations.
+This document explains the advanced Data Structures and Algorithms (DSA) implemented in the C++ core engine of the stock trading application.
 
 ---
 
-## SECTION 2: Data Structures Used
+## SECTION 1: Why C++ for DSA?
 
-### 1. AVL Tree (Self-Balancing Binary Search Tree)
-- **Where Used**: Order Book management (`engine/order_engine.py`).
-- **Why Used**: To maintain orders in a sorted state by price. Unlike a regular BST, an AVL tree guarantees $O(\log n)$ height by performing rotations during insertion and deletion. This ensures that finding the best bid or ask always takes logarithmic time.
-- **Node Structure**:
-  - `key`: Price level.
-  - `value`: A list of orders at that specific price (FIFO).
-- **Time Complexity**:
-  - Insertion: $O(\log n)$
-  - Deletion: $O(\log n)$
-  - Search: $O(\log n)$
+In high-frequency trading systems, performance is critical. While Python is excellent for building web APIs and handling UI, its global interpreter lock (GIL) and dynamic nature can be bottlenecks for core computational logic. 
+
+**Advantages of C++ for the Trading Engine:**
+*   **Memory Efficiency:** Precise control over memory allocation for tree nodes.
+*   **Speed:** Compiled machine code executes significantly faster than interpreted Python.
+*   **Determinism:** Predictable performance without garbage collection pauses.
+*   **Advanced DSA Implementation:** Native support for pointers and complex memory layouts allows for more robust implementations of custom data structures.
+
+---
+
+## SECTION 2: Structures Used
+
+### 1. AVL Tree (Order Book)
+*   **Implementation:** `engine_cpp/avl_tree.cpp`
+*   **Role:** Manages the order book for each stock.
+*   **Logic:** Nodes are keyed by **price**. Each node contains a `std::vector` of `Order` objects representing orders at that specific price level (FIFO).
+*   **Complexity:** Guaranteed $O(\log n)$ for insertion, deletion, and search by price.
 
 ### 2. DEPQ (Double-Ended Priority Queue)
-- **Where Used**: Instant access to best Bid and best Ask.
-- **Why Used**: While AVL trees give us sorted access, a DEPQ (implemented using a Min-Heap and a Max-Heap) provides a highly efficient way to fetch the extreme values (highest buy and lowest sell) which are the most critical data points in a matching engine.
-- **Time Complexity**:
-  - Get Max/Min: $O(1)$ (top of heap)
-  - Insertion: $O(\log n)$
+*   **Implementation:** `engine_cpp/depq.cpp`
+*   **Role:** Provides efficient access to the "Best Bid" (highest buy price) and "Best Ask" (lowest sell price).
+*   **Logic:** Implemented using the **AVL Tree** internally. Since an AVL tree is sorted, retrieving the minimum and maximum elements is a simple traversal to the leftmost and rightmost nodes.
+*   **Complexity:** $O(\log n)$ to find min/max in the AVL-based implementation.
 
 ### 3. Trie (Prefix Tree)
-- **Where Used**: Stock symbol search and autocomplete (`/api/search`).
-- **Why Used**: Tries are optimized for prefix-based searches. In a trading terminal, users often search for stocks by typing the first few letters. A Trie allows us to find all matching symbols in $O(L)$ time, where $L$ is the length of the query, regardless of how many thousands of stocks are in the system.
-- **Time Complexity**:
-  - Search/Insert: $O(L)$
-
-### 4. B+ Tree
-- **Where Used**: Trade History indexing (`engine/dsa/bplus_tree.py`).
-- **Why Used**: Executed trades are often queried over time ranges. A B+ Tree stores data in its leaf nodes, which are linked together. This makes it exceptionally efficient for range queries (e.g., "Get all trades between 10:00 AM and 11:00 AM").
-- **Time Complexity**:
-  - Point Query: $O(\log_m n)$
-  - Range Query: $O(\log_m n + k)$ (where $k$ is the number of results).
+*   **Implementation:** `engine_cpp/trie.cpp`
+*   **Role:** Efficient stock symbol searching and prefix matching.
+*   **Logic:** Stores characters of stock symbols in a tree structure. Each node contains a map of child characters.
+*   **Complexity:** $O(L)$ where $L$ is the length of the search query, regardless of the number of symbols.
 
 ---
 
-## SECTION 3: Comparison
+## SECTION 3: Flow of Execution
 
-| Operation | Old (List/Dict) | New (Advanced DSA) | Improvement |
-| :--- | :--- | :--- | :--- |
-| **Order Insertion** | $O(1)$ (Append) | $O(\log n)$ (AVL) | Maintains sorted order automatically |
-| **Best Price Access** | $O(n \log n)$ (Sort) | $O(1)$ (DEPQ) | Drastic improvement for HFT |
-| **Symbol Search** | $O(n)$ (Linear) | $O(L)$ (Trie) | Independent of symbol count |
-| **Range Queries** | $O(n)$ (Filter) | $O(\log n + k)$ (B+ Tree) | Optimized for history retrieval |
-
----
-
-## SECTION 4: Flow of Execution
-
-1. **Order Placement**:
-   - User submits a `BUY` order for `TCS.NS` at `₹3400`.
-   - The engine inserts the order into the `TCS.NS` **AVL Tree** ($O(\log n)$).
-   - The order is also pushed into the **DEPQ** for quick top-price tracking.
-2. **Order Matching**:
-   - The `PriceManager` thread updates the market price.
-   - The engine performs an inorder traversal on the AVL Tree to find nodes whose prices cross the market price threshold.
-   - Matching orders are executed and removed from the tree ($O(\log n)$).
-3. **Trade Archiving**:
-   - Executed trades are stored in the **B+ Tree** indexed by their ISO timestamp, enabling fast history lookups.
+1.  **Order Placement:**
+    *   Python (Flask) receives a POST request.
+    *   The data is serialized to JSON and sent to the C++ engine via `stdin`.
+    *   C++ engine parses the JSON and inserts the order into the corresponding symbol's **AVL Tree**.
+2.  **Order Storage:**
+    *   Orders are grouped by price level within the AVL tree.
+    *   The tree remains balanced automatically through rotations.
+3.  **Execution Logic:**
+    *   When market prices update, Flask sends the new prices to the C++ engine.
+    *   The engine performs an **inorder traversal** of the AVL Trees.
+    *   **Cross Logic:** If a BUY order's price is $\ge$ Market Price OR a SELL order's price is $\le$ Market Price, a trade is executed.
+    *   Executed orders are removed from the trees, and `Trade` objects are generated.
 
 ---
 
-## SECTION 5: Complexity Analysis Summary
+## SECTION 4: Complexity Analysis
 
-| Data Structure | Insertion | Deletion | Search |
-| :--- | :--- | :--- | :--- |
-| **AVL Tree** | $O(\log n)$ | $O(\log n)$ | $O(\log n)$ |
-| **Trie** | $O(L)$ | $O(L)$ | $O(L)$ |
-| **B+ Tree** | $O(\log_m n)$ | $O(\log_m n)$ | $O(\log_m n)$ |
-| **DEPQ** | $O(\log n)$ | $O(\log n)$ | $O(1)$ (Top) |
+| Operation | Data Structure | Time Complexity |
+| :--- | :--- | :--- |
+| Place Order | AVL Tree | $O(\log n)$ |
+| Cancel Order | AVL Tree | $O(\log n)$ |
+| Get Best Price | DEPQ (AVL) | $O(\log n)$ |
+| Symbol Search | Trie | $O(L)$ |
+| Matching Traversal | AVL Tree | $O(k \log n)$ |
+
+*where $n$ is the number of price levels, $L$ is query length, and $k$ is number of matches.*
+
+---
+
+## SECTION 5: Python ↔ C++ Integration
+
+The integration uses a **Persistent Subprocess Bridge**:
+
+1.  **Backend Initialization:** Flask starts the `engine.exe` process once.
+2.  **Communication:** Flask uses `subprocess.PIPE` to communicate via `stdin` and `stdout`.
+3.  **Data Format:** All messages are sent as single-line JSON objects.
+    *   **Request (Python -> C++):** `{"action": "place_order", "symbol": "TCS.NS", ...}`
+    *   **Response (C++ -> Python):** `{"status": "success", "order_id": "ORD-1"}`
+4.  **State Management:** The C++ process maintains the entire state of the order book and trade history in memory for the duration of the server's uptime.
+
+---
+
+## SECTION 6: Build & Run
+
+### Compilation
+To compile the C++ engine, use the following command in the `engine_cpp/` directory:
+
+```powershell
+g++ main.cpp order_engine.cpp avl_tree.cpp depq.cpp trie.cpp -o engine.exe -std=c++11
+```
+
+### Running the App
+Once compiled, simply start the Flask application:
+
+```powershell
+python app.py
+```

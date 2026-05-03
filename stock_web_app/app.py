@@ -1,12 +1,75 @@
 from flask import Flask, render_template, request, jsonify
-from engine.order_engine import OrderEngine
-from engine.price_manager import PriceManager
+import json
+import subprocess
+import os
 from datetime import datetime
+
+class CPPEngineWrapper:
+    def __init__(self):
+        self.engine_path = os.path.join(os.path.dirname(__file__), "engine_cpp", "engine.exe")
+        self.process = subprocess.Popen(
+            [self.engine_path],
+            stdin=subprocess.PIPE,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            bufsize=1
+        )
+
+    def _send_command(self, cmd):
+        self.process.stdin.write(json.dumps(cmd) + "\n")
+        line = self.process.stdout.readline()
+        if not line:
+            return {"status": "error", "message": "Engine crashed"}
+        return json.loads(line)
+
+    def place_order(self, symbol, order_type, price, quantity):
+        cmd = {
+            "action": "place_order",
+            "symbol": symbol,
+            "type": order_type,
+            "price": price,
+            "quantity": quantity
+        }
+        res = self._send_command(cmd)
+        if res.get("status") == "success":
+            return {
+                "success": True, 
+                "message": f"Order {res['order_id']} placed in C++ AVL Tree.",
+                "order_id": res["order_id"]
+            }
+        return {"success": False, "message": "C++ Engine Error"}
+
+    def process_market_orders(self, prices):
+        cmd = {"action": "process_market_orders"}
+        cmd.update(prices)
+        return self._send_command(cmd)
+
+    def get_order_book(self):
+        res = self._send_command({"action": "get_order_book"})
+        return {
+            "buy_side": res.get("buy_side", []),
+            "sell_side": res.get("sell_side", [])
+        }
+
+    def get_trade_history(self):
+        res = self._send_command({"action": "get_trades"})
+        return res.get("trades", [])
+
+    def get_stats(self):
+        res = self._send_command({"action": "get_stats"})
+        return res.get("stats", {})
+
+    def search_symbols(self, query):
+        res = self._send_command({"action": "search_symbols", "query": query})
+        return res.get("results", [])
 
 app = Flask(__name__)
 
-# Initialize engine with the list of supported stocks
-engine = OrderEngine(PriceManager.STOCKS)
+# Initialize C++ engine wrapper
+engine = CPPEngineWrapper()
+
+from engine.price_manager import PriceManager
 
 def on_price_update(prices):
     """Callback function triggered by PriceManager when prices change"""
