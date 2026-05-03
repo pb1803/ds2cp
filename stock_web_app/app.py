@@ -5,7 +5,8 @@ from datetime import datetime
 
 app = Flask(__name__)
 
-engine = OrderEngine()
+# Initialize engine with the list of supported stocks
+engine = OrderEngine(PriceManager.STOCKS)
 
 def on_price_update(prices):
     """Callback function triggered by PriceManager when prices change"""
@@ -162,6 +163,23 @@ def get_stats():
         return jsonify({
             "success": True,
             "stats": stats
+        })
+    except Exception as e:
+        return jsonify({
+            "success": False,
+            "error": str(e)
+        }), 500
+
+@app.route('/api/search', methods=['GET'])
+def search_symbols():
+    """Search stock symbols using Trie."""
+    try:
+        query = request.args.get('q', '')
+        results = engine.search_symbols(query)
+        return jsonify({
+            "success": True,
+            "query": query,
+            "results": results
         })
     except Exception as e:
         return jsonify({
