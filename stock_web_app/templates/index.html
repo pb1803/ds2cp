@@ -1,0 +1,202 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ProTrade Dashboard</title>
+    <!-- Google Fonts for Modern Typography -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Custom CSS -->
+    <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+    <div class="app-container">
+        <!-- Header -->
+        <header class="app-header">
+            <div class="header-logo">
+                <span class="logo-icon">📉</span>
+                <h1>ProTrade Terminal</h1>
+            </div>
+            <div class="header-status">
+                <span class="status-indicator"></span> Market Open
+            </div>
+        </header>
+
+        <!-- Main Workspace -->
+        <main class="workspace">
+            <!-- Left Column: Watchlist & Order Entry -->
+            <div class="left-panel">
+                <!-- Watchlist / Live Prices -->
+                <section class="card watchlist-card">
+                    <div class="card-header">
+                        <h2>Watchlist</h2>
+                    </div>
+                    <div class="table-container">
+                        <table class="data-table selectable-table">
+                            <thead>
+                                <tr>
+                                    <th>Symbol</th>
+                                    <th class="text-right">LTP</th>
+                                    <th class="text-right">Chg</th>
+                                </tr>
+                            </thead>
+                            <tbody id="pricesTable">
+                                <tr class="empty-row"><td colspan="3">Loading market data...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+
+                <!-- Order Entry Form -->
+                <section class="card order-card">
+                    <div class="card-header">
+                        <h2>Order Entry</h2>
+                        <span class="selected-stock-badge" id="orderFormSymbolBadge">TCS.NS</span>
+                    </div>
+                    
+                    <form id="orderForm" class="order-form">
+                        <!-- Hidden input storing selected symbol -->
+                        <input type="hidden" id="orderSymbol" value="TCS.NS">
+                        
+                        <div class="order-type-toggle">
+                            <button type="button" class="btn-toggle buy-toggle active" data-type="BUY" onclick="setOrderType('BUY')">BUY</button>
+                            <button type="button" class="btn-toggle sell-toggle" data-type="SELL" onclick="setOrderType('SELL')">SELL</button>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="orderPrice">Limit Price</label>
+                            <div class="input-with-prefix">
+                                <span class="prefix">₹</span>
+                                <input type="number" id="orderPrice" step="0.01" min="0.01" required placeholder="0.00">
+                            </div>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="orderQuantity">Quantity</label>
+                            <div class="input-with-prefix">
+                                <span class="prefix">#</span>
+                                <input type="number" id="orderQuantity" step="1" min="1" required placeholder="0">
+                            </div>
+                        </div>
+
+                        <button type="submit" class="btn-submit buy-action" id="submitOrderBtn">BUY TCS.NS</button>
+                    </form>
+                    <div id="orderMessage" class="message-box"></div>
+                </section>
+            </div>
+
+            <!-- Right Column: Chart & Stats -->
+            <div class="right-panel">
+                <!-- Chart Section -->
+                <section class="card chart-card">
+                    <div class="card-header chart-header">
+                        <div class="chart-title">
+                            <h2 id="chartTitleSymbol">TCS.NS</h2>
+                            <span class="live-badge">LIVE</span>
+                        </div>
+                    </div>
+                    <div class="chart-wrapper">
+                        <canvas id="stockChart"></canvas>
+                    </div>
+                </section>
+
+                <!-- Market Stats -->
+                <section class="card stats-card">
+                    <div class="stats-grid">
+                        <div class="stat-box">
+                            <span class="stat-label">Total Volume</span>
+                            <strong class="stat-value" id="statVolume">0</strong>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Trades Executed</span>
+                            <strong class="stat-value" id="statTrades">0</strong>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Buy Orders</span>
+                            <strong class="stat-value text-buy" id="statBuyOrders">0</strong>
+                        </div>
+                        <div class="stat-box">
+                            <span class="stat-label">Sell Orders</span>
+                            <strong class="stat-value text-sell" id="statSellOrders">0</strong>
+                        </div>
+                    </div>
+                </section>
+            </div>
+        </main>
+
+        <!-- Bottom Workspace: Order Book & History -->
+        <div class="bottom-workspace">
+            <div class="grid-2">
+                <!-- Market Depth (Order Book) -->
+                <section class="card orderbook-card">
+                    <div class="card-header">
+                        <h2>Market Depth (Open Orders)</h2>
+                    </div>
+                    <div class="depth-grid">
+                        <!-- Buy Side -->
+                        <div class="depth-side buy-side">
+                            <div class="depth-header">BID (BUY)</div>
+                            <table class="data-table depth-table">
+                                <thead>
+                                    <tr>
+                                        <th>Symbol</th>
+                                        <th>Qty</th>
+                                        <th class="text-right">Price</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="buyOrdersTable">
+                                    <tr class="empty-row"><td colspan="3">No bids</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                        <!-- Sell Side -->
+                        <div class="depth-side sell-side">
+                            <div class="depth-header">ASK (SELL)</div>
+                            <table class="data-table depth-table">
+                                <thead>
+                                    <tr>
+                                        <th>Price</th>
+                                        <th>Qty</th>
+                                        <th class="text-right">Symbol</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="sellOrdersTable">
+                                    <tr class="empty-row"><td colspan="3">No asks</td></tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Trade History -->
+                <section class="card history-card">
+                    <div class="card-header">
+                        <h2>Trade History</h2>
+                    </div>
+                    <div class="table-container history-container">
+                        <table class="data-table striped-table">
+                            <thead>
+                                <tr>
+                                    <th>Time</th>
+                                    <th>Symbol</th>
+                                    <th>Type</th>
+                                    <th class="text-right">Limit</th>
+                                    <th class="text-right">Exec</th>
+                                    <th class="text-right">Qty</th>
+                                </tr>
+                            </thead>
+                            <tbody id="tradesTable">
+                                <tr class="empty-row"><td colspan="6">No trades yet</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </section>
+            </div>
+        </div>
+    </div>
+    
+    <script src="{{ url_for('static', filename='script.js') }}"></script>
+</body>
+</html>
