@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Performance Metrics | ProTrade</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #f5f7fb;
+            --card: #ffffff;
+            --primary: #2563eb;
+            --text: #111827;
+            --text-muted: #6b7280;
+            --border: #e5e7eb;
+        }
+        [data-theme="dark"] {
+            --bg: #0f172a;
+            --card: #1e293b;
+            --text: #f8fafc;
+            --text-muted: #94a3b8;
+            --border: #334155;
+        }
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            margin: 0;
+            padding: 40px;
+        }
+        .container {
+            max-width: 1000px;
+            margin: 0 auto;
+        }
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 40px;
+        }
+        .btn-back {
+            text-decoration: none;
+            color: var(--primary);
+            font-weight: 600;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+        .card {
+            background: var(--card);
+            padding: 24px;
+            border-radius: 16px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+            border: 1px solid var(--border);
+        }
+        .card-label {
+            font-size: 0.875rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+        .card-value {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: var(--primary);
+        }
+        .chart-card {
+            background: var(--card);
+            padding: 32px;
+            border-radius: 16px;
+            border: 1px solid var(--border);
+        }
+        h1 { margin: 0; font-size: 2rem; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <a href="/" class="btn-back">
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 18-6-6 6-6"/></svg>
+                    Back to Terminal
+                </a>
+                <h1>Performance Metrics</h1>
+            </div>
+            <div class="card-label">Engine: C++ AVL/DEPQ/Trie/B+ Tree</div>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-label">Avg Insert Time</div>
+                <div class="card-value" id="avgInsert">0.00 ms</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Avg Match Time</div>
+                <div class="card-value" id="avgMatch">0.00 ms</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Orders</div>
+                <div class="card-value" id="totalOrders">0</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Matches</div>
+                <div class="card-value" id="totalMatches">0</div>
+            </div>
+        </div>
+
+        <div class="chart-card">
+            <h3>Execution Latency (Last 20 operations)</h3>
+            <canvas id="perfChart"></canvas>
+        </div>
+    </div>
+
+    <script>
+        let perfChart = null;
+
+        async function updateMetrics() {
+            try {
+                const res = await fetch('/api/performance');
+                const data = await res.json();
+
+                document.getElementById('avgInsert').textContent = `${data.avg_insert_time.toFixed(4)} ms`;
+                document.getElementById('avgMatch').textContent = `${data.avg_match_time.toFixed(4)} ms`;
+                document.getElementById('totalOrders').textContent = data.total_orders;
+                document.getElementById('totalMatches').textContent = data.total_matches;
+
+                updateChart(data.insert_history, data.match_history);
+            } catch (e) { console.error(e); }
+        }
+
+        function updateChart(inserts, matches) {
+            const ctx = document.getElementById('perfChart').getContext('2d');
+            
+            if (perfChart) {
+                perfChart.data.datasets[0].data = inserts;
+                perfChart.data.datasets[1].data = matches;
+                perfChart.update();
+                return;
+            }
+
+            perfChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array.from({length: inserts.length}, (_, i) => i + 1),
+                    datasets: [
+                        {
+                            label: 'Insert Time (ms)',
+                            data: inserts,
+                            borderColor: '#2563eb',
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Match Time (ms)',
+                            data: matches,
+                            borderColor: '#dc2626',
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: { beginAtZero: true, title: { display: true, text: 'Time (ms)' } }
+                    }
+                }
+            });
+        }
+
+        updateMetrics();
+        setInterval(updateMetrics, 2000);
+
+        // Apply theme
+        const theme = localStorage.getItem('theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+    </script>
+</body>
+</html>

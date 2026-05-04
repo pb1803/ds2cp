@@ -15,6 +15,7 @@ OrderEngine::OrderEngine(std::vector<std::string> symbols) : order_counter(0), t
 OrderEngine::~OrderEngine() {
     for (auto const& pair : buy_trees) delete pair.second;
     for (auto const& pair : sell_trees) delete pair.second;
+    for (Trade* t : all_trades) delete t;
 }
 
 std::string OrderEngine::current_time_str() {
@@ -40,12 +41,19 @@ std::string OrderEngine::placeOrder(std::string symbol, std::string type, double
     return order_id;
 }
 
-std::vector<Trade> OrderEngine::processMarketOrders(std::unordered_map<std::string, double> market_prices) {
-    std::vector<Trade> executed_trades;
+std::vector<Trade*> OrderEngine::processMarketOrders(std::unordered_map<std::string, double> market_prices) {
+    std::vector<Trade*> executed_trades;
 
     for (auto const& pair : market_prices) {
         std::string symbol = pair.first;
         double m_price = pair.second;
+
+        // Update price history for indicators
+        price_history[symbol].push_back(m_price);
+        if (price_history[symbol].size() > MAX_WINDOW) {
+            price_history[symbol].pop_front();
+        }
+
         // Match BUY orders (Order Price >= Market Price)
         AVLTree* buy_tree = buy_trees[symbol];
         std::vector<AVLNode*> buy_nodes;
@@ -56,12 +64,13 @@ std::vector<Trade> OrderEngine::processMarketOrders(std::unordered_map<std::stri
             if (node->price >= m_price) {
                 for (const auto& order : node->orders) {
                     trade_counter++;
-                    Trade t = {
+                    Trade* t = new Trade {
                         "TRD-" + std::to_string(trade_counter),
                         order.id, symbol, order.type, order.price, m_price, order.quantity, current_time_str()
                     };
                     executed_trades.push_back(t);
                     all_trades.push_back(t);
+                    trade_index.insert(t->timestamp, t);
                 }
                 buy_tree->remove(node->price);
             }
@@ -76,12 +85,13 @@ std::vector<Trade> OrderEngine::processMarketOrders(std::unordered_map<std::stri
             if (node->price <= m_price) {
                 for (const auto& order : node->orders) {
                     trade_counter++;
-                    Trade t = {
+                    Trade* t = new Trade {
                         "TRD-" + std::to_string(trade_counter),
                         order.id, symbol, order.type, order.price, m_price, order.quantity, current_time_str()
                     };
                     executed_trades.push_back(t);
                     all_trades.push_back(t);
+                    trade_index.insert(t->timestamp, t);
                 }
                 sell_tree->remove(node->price);
             }
@@ -111,12 +121,38 @@ std::map<std::string, std::vector<std::vector<Order>>> OrderEngine::getOrderBook
     return book;
 }
 
-std::vector<Trade> OrderEngine::getTrades() {
+std::vector<Trade*> OrderEngine::getTrades(std::string start, std::string end) {
+    if (!start.empty() && !end.empty()) {
+        return trade_index.rangeSearch(start, end);
+    }
     return all_trades;
 }
 
-std::vector<std::string> OrderEngine::searchSymbols(std::string prefix) {
-    return symbol_trie.search(prefix);
+double OrderEngine::calculateSMA(std::string symbol, int period) {
+    if (price_history[symbol].size() < (size_t)period) return -1.0;
+    double sum = 0;
+    auto it = price_history[symbol].rbegin();
+    for (int i = 0; i < period; ++i, ++it) {
+        sum += *it;
+    }
+    return sum / period;
+}
+
+double OrderEngine::calculateRSI(std::string symbol, int period) {
+    if (price_history[symbol].size() < (size_t)period + 1) return -1.0;
+    
+    double gain = 0, loss = 0;
+    auto it = price_history[symbol].rbegin();
+    for (int i = 0; i < period; ++i) {
+        double diff = *it - *(it + 1);
+        if (diff > 0) gain += diff;
+        else loss -= diff;
+        ++it;
+    }
+    
+    if (loss == 0) return 100.0;
+    double rs = (gain / period) / (loss / period);
+    return 100.0 - (100.0 / (1.0 + rs));
 }
 
 std::unordered_map<std::string, long long> OrderEngine::getStats() {
@@ -149,8 +185,12 @@ std::unordered_map<std::string, long long> OrderEngine::getStats() {
     stats["trades_executed"] = (long long)all_trades.size();
     
     long long volume = 0;
-    for (size_t i = 0; i < all_trades.size(); ++i) volume += all_trades[i].quantity;
+    for (size_t i = 0; i < all_trades.size(); ++i) volume += all_trades[i]->quantity;
     stats["total_volume"] = volume;
 
     return stats;
+}
+
+std::vector<std::string> OrderEngine::searchSymbols(std::string prefix) {
+    return symbol_trie.search(prefix);
 }

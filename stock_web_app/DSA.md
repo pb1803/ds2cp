@@ -97,3 +97,24 @@ Once compiled, simply start the Flask application:
 ```powershell
 python app.py
 ```
+### 4. B+ Tree (Trade History Indexing)
+*   **Purpose**: Efficiently stores and retrieves trade history records.
+*   **Performance**:
+    *   **Insertion**: $O(\log n)$
+    *   **Range Query**: $O(\log n + k)$ where $k$ is the number of results.
+*   **Usage**: The `BPlusTree` in C++ allows for high-speed range queries (e.g., "all trades between 10:00 AM and 11:00 AM") which is essential for audit trails and historical analysis.
+
+### 5. Technical Indicators (Sliding Window)
+*   **Purpose**: Real-time calculation of market trends.
+*   **Logic**:
+    *   **SMA (Simple Moving Average)**: Calculated using a sliding window of the last 14-50 prices stored in a `std::deque`.
+    *   **RSI (Relative Strength Index)**: Measures the speed and change of price movements to identify overbought or oversold conditions.
+*   **Performance**: $O(p)$ where $p$ is the period length, calculated instantly on every price update.
+
+---
+
+## 🚀 Real-Time Architecture (WebSocket)
+The system now utilizes **Flask-SocketIO** for a true real-time experience:
+1.  **C++ Engine**: Processes trades and emits events.
+2.  **Python Layer**: Forwards these events to the frontend via WebSockets.
+3.  **Frontend**: Instantly updates the chart, order book, and shows **Trade Execution Notifications** in the top-right corner without any page refresh or polling.

@@ -2,6 +2,7 @@
 #include <string>
 #include <vector>
 #include <unordered_map>
+#include <chrono>
 #include "order_engine.h"
 
 // Simple helper to parse basic JSON-like input (key-value pairs)
@@ -45,23 +46,38 @@ int main() {
             std::string action = get_json_value(line, "action");
 
             if (action == "place_order") {
-                std::string type = get_json_value(line, "type");
                 std::string symbol = get_json_value(line, "symbol");
+                std::string type = get_json_value(line, "type");
                 double price = std::stod(get_json_value(line, "price"));
                 int quantity = std::stoi(get_json_value(line, "quantity"));
 
+                auto start = std::chrono::high_resolution_clock::now();
                 std::string id = engine.placeOrder(symbol, type, price, quantity);
-                std::cout << "{\"status\":\"success\",\"order_id\":\"" << id << "\"}" << std::endl;
+                auto end = std::chrono::high_resolution_clock::now();
+                
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                std::cout << "{\"status\":\"success\",\"order_id\":\"" << id << "\",\"exec_time_us\":" << duration << "}" << std::endl;
             } 
             else if (action == "process_market_orders") {
-                // Very simplified parsing for prices map
                 std::unordered_map<std::string, double> prices;
                 for (const auto& s : symbols) {
                     std::string p_str = get_json_value(line, s);
                     if (!p_str.empty()) prices[s] = std::stod(p_str);
                 }
+                
+                auto start = std::chrono::high_resolution_clock::now();
                 auto trades = engine.processMarketOrders(prices);
-                std::cout << "{\"status\":\"success\",\"executed_count\":" << trades.size() << "}" << std::endl;
+                auto end = std::chrono::high_resolution_clock::now();
+                
+                auto duration = std::chrono::duration_cast<std::chrono::microseconds>(end - start).count();
+                
+                std::cout << "{\"status\":\"success\",\"executed_count\":" << trades.size() << ",\"exec_time_us\":" << duration << ",\"trades\":[";
+                for (size_t i = 0; i < trades.size(); ++i) {
+                    const auto& t = *trades[i];
+                    std::cout << "{\"trade_id\":\"" << t.trade_id << "\",\"symbol\":\"" << t.symbol << "\",\"type\":\"" << t.type << "\",\"exec_price\":" << t.exec_price << ",\"quantity\":" << t.quantity << "}";
+                    if (i < trades.size() - 1) std::cout << ",";
+                }
+                std::cout << "]}" << std::endl;
             }
             else if (action == "get_order_book") {
                 auto book = engine.getOrderBook();
@@ -86,15 +102,23 @@ int main() {
                 std::cout << "]}" << std::endl;
             }
             else if (action == "get_trades") {
-                auto trades = engine.getTrades();
-                std::cout << "{\"status\":\"success\",\"trades\":[";
-                for (size_t i = 0; i < trades.size(); ++i) {
-                    const auto& t = trades[i];
-                    std::cout << "{\"trade_id\":\"" << t.trade_id << "\",\"order_id\":\"" << t.order_id << "\",\"symbol\":\"" << t.symbol << "\",\"type\":\"" << t.type << "\",\"limit_price\":" << t.limit_price << ",\"exec_price\":" << t.exec_price << ",\"quantity\":" << t.quantity << ",\"timestamp\":\"" << t.timestamp << "\"}";
-                    if (i < trades.size() - 1) std::cout << ",";
-                }
-                std::cout << "]}" << std::endl;
+            std::string start = get_json_value(line, "start");
+            std::string end = get_json_value(line, "end");
+            auto trades = engine.getTrades(start, end);
+            std::cout << "{\"status\":\"success\",\"trades\":[";
+            for (size_t i = 0; i < trades.size(); ++i) {
+                const auto& t = *trades[i];
+                std::cout << "{\"trade_id\":\"" << t.trade_id << "\",\"order_id\":\"" << t.order_id << "\",\"symbol\":\"" << t.symbol << "\",\"type\":\"" << t.type << "\",\"limit_price\":" << t.limit_price << ",\"exec_price\":" << t.exec_price << ",\"order_price\":" << t.limit_price << ",\"market_price\":" << t.exec_price << ",\"quantity\":" << t.quantity << ",\"timestamp\":\"" << t.timestamp << "\"}";
+                if (i < trades.size() - 1) std::cout << ",";
             }
+            std::cout << "]}" << std::endl;
+        }
+        else if (action == "get_indicators") {
+            std::string symbol = get_json_value(line, "symbol");
+            double sma = engine.calculateSMA(symbol, 14);
+            double rsi = engine.calculateRSI(symbol, 14);
+            std::cout << "{\"status\":\"success\",\"sma\":" << sma << ",\"rsi\":" << rsi << "}" << std::endl;
+        }
             else if (action == "get_stats") {
                 auto stats = engine.getStats();
                 std::cout << "{\"status\":\"success\",\"stats\":{";
